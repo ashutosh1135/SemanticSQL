@@ -40,6 +40,11 @@ class Settings:
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
     db_echo_log: bool = os.getenv("DB_ECHO_LOG", "False").lower() in ("true", "1", "t")
     
+    # Qdrant Vector DB
+    QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", "6333"))
+    QDRANT_COLLECTION: str = os.getenv("QDRANT_COLLECTION", "semanticsql")
+    
     # Connection pool settings
     DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
     DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))

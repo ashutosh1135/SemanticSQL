@@ -104,3 +104,6 @@ secrets/
 *.h5
 *.bin
 model_cache/ 
+
+# data
+resources/

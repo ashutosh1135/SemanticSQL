@@ -2,137 +2,146 @@
 
 SemanticSQL is a FastAPI application that allows users to connect to external databases, extract schema metadata, and use natural language to generate SQL queries. It leverages semantic search and embeddings to understand database schema structure and generate appropriate SQL however or whatever query you want on your personal database(s).
 
-## Overview
-
-SemanticSQL is a FastAPI application that allows users to connect to external databases, extract schema metadata, and use natural language to generate SQL queries. It leverages semantic search with vector embeddings to understand database schema structures and uses Google's Gemini AI model to generate appropriate SQL queries.
-
 ## Features
 
 - **Database Connection Management**: Connect to various database types (PostgreSQL, MySQL, SQL Server, Oracle)
 - **Schema Extraction**: Automatically extract and store schema metadata from connected databases
-- **Semantic Search**: Find relevant tables and columns based on natural language queries
 - **AI Query Generation**: Use LLMs to convert natural language to valid SQL
 - **Query Execution**: Execute generated SQL against connected databases
 
-## Architecture
-
-The application is built with the following key components:
-
-1. **FastAPI Backend**: Provides RESTful API endpoints for managing database connections and queries
-2. **SQLAlchemy ORM**: Handles database operations with connection pooling for performance
-3. **Vector Embeddings**: Uses sentence-transformers to generate embeddings for semantic search
-4. **LLM Integration**: Integrates with Google's Gemini models for SQL generation
-5. **Logging and Monitoring**: Comprehensive logging for monitoring and debugging
-
-## Project Structure
-
-```
-semanticsql/
-├── app/
-│   ├── api/                # API routes
-│   ├── config/             # Configuration settings
-│   ├── db/                 # Database connection code
-│   ├── models/             # Data models
-│   ├── services/           # Business logic
-│   └── utils/              # Utility functions
-├── main.py                 # Application entry point
-├── env.example             # Example environment variables
-└── README.md               # This file
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.9+
-- PostgreSQL database
-- Google Gemini API key (for AI features)
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/semanticsql.git
-   cd semanticsql
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set up environment variables:
-   ```bash
-   cp env.example .env
-   # Edit .env with your configuration
-   ```
-
-5. Start the application:
-   ```bash
-   uvicorn main:app --reload
-   ```
-
-6. Access the API at http://localhost:8000 and the interactive docs at http://localhost:8000/docs
-
 ## API Endpoints
 
-### Connection Management
+### 1. Create Database Connection
+Connect to an external database.
 
-- `POST /api/v1/connections/`: Create a new database connection
-- `GET /api/v1/connections/`: List all database connections
-- `GET /api/v1/connections/{connection_id}`: Get connection details
-- `DELETE /api/v1/connections/{connection_id}`: Delete a connection
+**Endpoint:** `POST /api/connect`
 
-### Query Operations
-
-- `POST /api/v1/queries/generate`: Generate SQL from natural language
-- `POST /api/v1/queries/execute`: Execute SQL against a database
-
-## Usage Examples
-
-### Connecting to a Database
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/connections/" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "db_type": "postgres",
-    "host": "localhost",
-    "port": "5432",
-    "database": "mydatabase",
-    "username": "user",
-    "password": "password"
-  }'
+**Request Body:**
+```json
+{
+    "db_type": "mysql",
+    "db_name": "prod",
+    "host": "bh-ai-database-identifier.cbkgq2y24ej6.us-east-1.rds.amazonaws.com",
+    "port": "3306",
+    "database": "bhdatabase",
+    "username": "admin",
+    "password": "Nopassw0rd#"
+}
 ```
 
-### Generating SQL from Natural Language
+**Response:**
+```json
+{
+    "message": "Database connected successfully",
+    "connection_id": "conn_123"
+}
+```
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/queries/generate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "Find all customers who made purchases last month",
-    "connection_id": "YOUR_CONNECTION_ID"
-  }'
+### 2. List Database Connections
+Get all available database connections.
+
+**Endpoint:** `GET /api/connections`
+
+**Response:**
+```json
+{
+    "connections": [
+        {
+            "connection_id": "conn_123",
+            "db_type": "mysql",
+            "db_name": "prod",
+            "host": "bh-ai-database-identifier.cbkgq2y24ej6.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "database": "bhdatabase"
+        }
+    ]
+}
+```
+
+### 3. Generate SQL Query
+Convert natural language to SQL using AI.
+
+**Endpoint:** `POST /api/generate-query`
+
+**Request Body:**
+```json
+{
+    "question": "what is my profit grouped by year?"
+}
+```
+
+**Response:**
+```json
+{
+    "query": "SELECT YEAR(created_at) as year, SUM(profit) as total_profit FROM sales GROUP BY YEAR(created_at) ORDER BY year"
+}
+```
+
+### 4. Execute SQL Query
+Execute a SQL query against the connected database.
+
+**Endpoint:** `POST /api/execute-query`
+
+**Request Body:**
+```json
+{
+    "sql": "select * from products"
+}
+```
+
+**Response:**
+```json
+{
+    "results": [
+        {
+            "id": 1,
+            "name": "Product A",
+            "price": 99.99,
+            "stock": 100
+        },
+        {
+            "id": 2,
+            "name": "Product B",
+            "price": 149.99,
+            "stock": 50
+        }
+    ]
+}
+```
+
+## Error Handling
+
+All endpoints return appropriate HTTP status codes and error messages:
+
+- `200 OK`: Successful request
+- `400 Bad Request`: Invalid input data
+- `500 Internal Server Error`: Server-side error
+
+Error responses include a detailed message:
+```json
+{
+    "detail": "Error message describing what went wrong"
+}
 ```
 
 ## Development
 
-### Running Tests
-
-```bash
-pytest
-```
-
 ### Environment Variables
 
-See `env.example` for all available configuration options.
+Required environment variables:
+```env
+# Database
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=semanticsql
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+
+# AI Models
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+MODEL_TEMPERATURE=0.1
+```
 
 ## License
 
@@ -142,6 +151,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [SQLAlchemy](https://www.sqlalchemy.org/)
-- [Sentence Transformers](https://www.sbert.net/)
 - [LangChain](https://langchain.com/)
 - [Google Gemini AI](https://ai.google.dev/)

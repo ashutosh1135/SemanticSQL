@@ -1,55 +1,35 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
-from sqlmodel import SQLModel, Session
-from fastapi import Depends
-import asyncio
-from contextlib import asynccontextmanager
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from app.config.config import settings
 import logging
 
-from app.config.config import settings
+logger = logging.getLogger("semanticsql")
 
-# Configure logging
-logger = logging.getLogger(__name__)
-
-# Create the SQLAlchemy engine with connection pooling
-engine = create_engine(
-    settings.database_url,
-    echo=settings.db_echo_log,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,
-    pool_pre_ping=True,
-    poolclass=QueuePool
+# Initialize Qdrant client
+qdrant_client = QdrantClient(
+    host=settings.QDRANT_HOST,
+    port=settings.QDRANT_PORT
 )
 
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@asynccontextmanager
-async def get_db_context():
-    """Provide a database session as an async context manager."""
-    session = SessionLocal()
-    try:
-        yield session
-    except Exception as e:
-        logger.error(f"Database session error: {str(e)}")
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-async def get_db():
-    """Dependency for FastAPI endpoints that need a db session."""
-    async with get_db_context() as session:
-        yield session
-
 async def create_db_and_tables():
-    """Initialize database by creating all tables defined in models."""
+    """Initialize Qdrant collection."""
     try:
-        SQLModel.metadata.create_all(engine)
-        logger.info("Database tables created successfully")
+        # Create collection if it doesn't exist
+        collections = qdrant_client.get_collections().collections
+        collection_names = [collection.name for collection in collections]
+        
+        if settings.QDRANT_COLLECTION not in collection_names:
+            qdrant_client.create_collection(
+                collection_name=settings.QDRANT_COLLECTION,
+                vectors_config=models.VectorParams(
+                    size=1536,  # Size of Gemini embeddings
+                    distance=models.Distance.COSINE
+                )
+            )
+            logger.info(f"Created Qdrant collection: {settings.QDRANT_COLLECTION}")
+        else:
+            logger.info(f"Using existing Qdrant collection: {settings.QDRANT_COLLECTION}")
+            
     except Exception as e:
-        logger.error(f"Failed to create database tables: {str(e)}")
+        logger.error(f"Qdrant initialization error: {e}")
         raise 

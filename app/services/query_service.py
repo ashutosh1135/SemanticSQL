@@ -1,94 +1,99 @@
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Tuple, Optional
-from uuid import UUID
-import sqlalchemy
+from typing import Dict, Any, List
+from app.services.database_service import DatabaseService
+from app.models.requests import GenerateQueryRequest
 import logging
+from pathlib import Path
+from sqlalchemy import inspect
+# Try to import generate_query, but provide a fallback if it's not working
+try:
+    from app.utils.query_generator import generate_query
+    HAS_QUERY_GENERATOR = True
+except Exception as e:
+    import re
+    HAS_QUERY_GENERATOR = False
+    logging.error(f"Failed to import query_generator: {str(e)}")
 
-from app.services.query_generator import generate_query_from_search
-from app.services.db_connector import get_connection
-from app.models.connection_models import DatabaseConnection
-from app.utils.db_utils import create_connection_string
+logger = logging.getLogger("semanticsql")
 
-# Configure logging
-logger = logging.getLogger(__name__)
+class QueryService:
+    def __init__(self, db_service: DatabaseService):
+        self.db_service = db_service
 
-async def generate_sql(db: Session, user_query: str, connection_id: UUID) -> Tuple[str, List[Dict[str, Any]]]:
-    """
-    Generate SQL from natural language query.
-    
-    Args:
-        db: Database session
-        user_query: Natural language query
-        connection_id: Connection ID
-        
-    Returns:
-        Tuple of (SQL query, relevant schema)
-    """
-    try:
-        return await generate_query_from_search(
-            user_query=user_query,
-            db_session=db,
-            db_id=connection_id
-        )
-    except Exception as e:
-        logger.error(f"SQL generation error: {str(e)}")
-        return f"/* Error generating SQL: {str(e)} */", []
-
-async def execute_sql(connection: DatabaseConnection, sql: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-    """
-    Execute SQL query against database.
-    
-    Args:
-        connection: Database connection
-        sql: SQL query to execute
-        parameters: Optional query parameters
-        
-    Returns:
-        Query results
-    """
-    # Create connection string
-    conn_string = await create_connection_string(
-        connection.db_type,
-        connection.username,
-        connection.password,
-        connection.host,
-        connection.port,
-        connection.database
-    )
-    
-    # Use context manager for safe connection handling
-    try:
-        with get_connection(conn_string) as conn:
-            if parameters:
-                result = conn.execute(sqlalchemy.text(sql), parameters)
-            else:
-                result = conn.execute(sqlalchemy.text(sql))
+    async def generate_sql_query(self, question: str) -> str:
+        """Generate SQL query from natural language question."""
+        try:
+            # Get actual database tables if a connection is available
+            actual_tables_info = ""
+            try:
+                connections = await self.db_service.list_connections()
+                if connections:
+                    connection = connections[0]
+                    connection_id = connection.connection_id
+                    
+                    if connection_id in self.db_service.engines:
+                        engine = self.db_service.engines[connection_id]
+                        actual_tables = inspect(engine).get_table_names()
+                        
+                        # Create a simple schema from actual tables
+                        actual_tables_info = "## Available Tables in Database\n"
+                        for table in actual_tables:
+                            actual_tables_info += f"- {table}\n"
+                            
+                            # Add column info for each table
+                            columns = inspect(engine).get_columns(table)
+                            actual_tables_info += "  Columns:\n"
+                            for col in columns:
+                                actual_tables_info += f"  - {col['name']} ({str(col['type'])})\n"
+                            
+                        logger.info(f"Providing {len(actual_tables)} actual tables to LLM")
+            except Exception as e:
+                logger.warning(f"Could not get database tables: {str(e)}")
             
-            # For SELECT queries, fetch results
-            if sql.strip().lower().startswith("select"):
-                columns = result.keys()
-                rows = result.fetchall()
-                
-                # Convert to list of dicts
-                data = [dict(zip(columns, row)) for row in rows]
-                
-                return {
-                    "success": True,
-                    "rows_affected": len(data),
-                    "data": data[:100],
-                    "has_more": len(data) > 100
-                }
-            # For non-SELECT queries
+            # Generate SQL query using the actual tables information
+            if HAS_QUERY_GENERATOR:
+                logger.info("Using LLM to generate SQL query")
+                return generate_query(question, actual_tables_info)
             else:
-                return {
-                    "success": True,
-                    "rows_affected": result.rowcount,
-                    "data": None
-                }
-    except Exception as e:
-        logger.error(f"SQL execution error: {str(e)}")
-        return {
-            "success": False,
-            "error": str(e),
-            "sql": sql
-        } 
+                logger.warning("LLM not available, using fallback generator")
+                return self._simple_query_generator(question, actual_tables_info)
+            
+        except Exception as e:
+            logger.error(f"Error generating SQL query: {str(e)}")
+            raise Exception(f"Error generating SQL query: {str(e)}")
+
+    def _simple_query_generator(self, question: str, schema_info: str) -> str:
+        """Simple rule-based query generator for fallback."""
+        # Extract table names from schema
+        tables = []
+        for line in schema_info.split("\n"):
+            if line.startswith("- "):
+                tables.append(line[2:].strip())
+        
+        if not tables:
+            return "SELECT 1 /* No tables found in database */"
+        
+        # Default to first table if no tables mentioned
+        target_table = tables[0]
+        
+        # Check if any table names are mentioned in the question
+        for table in tables:
+            if table.lower() in question.lower():
+                target_table = table
+                break
+        
+        # Simple query based on common question patterns
+        if any(word in question.lower() for word in ["count", "how many"]):
+            return f"SELECT COUNT(*) FROM {target_table}"
+        else:
+            return f"SELECT * FROM {target_table} LIMIT 10"
+
+    async def execute_query(self, connection_id: str, query: str) -> List[Dict[str, Any]]:
+        """Execute a SQL query on the specified database."""
+        try:
+            if connection_id not in self.db_service.engines:
+                raise Exception(f"No active database connection for {connection_id}")
+            
+            return await self.db_service.execute_query(connection_id, query)
+        except Exception as e:
+            logger.error(f"Query execution error: {str(e)}")
+            raise 

@@ -1,0 +1,150 @@
+# Schema for mysql_bhdatabase
+
+# Database Schema for mysql_bhdatabase
+
+## Tables (10)
+
+### assignments
+
+Columns:
+- assignment_id (INTEGER)
+- offering_id (INTEGER)
+- title (VARCHAR(100))
+- due_date (DATE)
+- max_score (INTEGER)
+
+Primary Key: assignment_id
+
+Foreign Keys:
+- offering_id -> course_offerings.offering_id
+
+### attendance
+
+Columns:
+- attendance_id (INTEGER)
+- offering_id (INTEGER)
+- student_id (INTEGER)
+- attendance_date (DATE)
+- status (ENUM)
+
+Primary Key: attendance_id
+
+Foreign Keys:
+- offering_id -> course_offerings.offering_id
+- student_id -> students.student_id
+
+### classrooms
+
+Columns:
+- room_id (INTEGER)
+- building (VARCHAR(50))
+- room_number (VARCHAR(10))
+- capacity (INTEGER)
+
+Primary Key: room_id
+
+### course_offerings
+
+Columns:
+- offering_id (INTEGER)
+- course_id (INTEGER)
+- professor_id (INTEGER)
+- semester (VARCHAR(10))
+- year (INTEGER)
+- room (VARCHAR(20))
+
+Primary Key: offering_id
+
+Foreign Keys:
+- course_id -> courses.course_id
+- professor_id -> professors.professor_id
+
+### courses
+
+Columns:
+- course_id (INTEGER)
+- course_code (VARCHAR(20))
+- course_title (VARCHAR(100))
+- credits (INTEGER)
+- department_id (INTEGER)
+
+Primary Key: course_id
+
+Foreign Keys:
+- department_id -> departments.department_id
+
+### departments
+
+Columns:
+- department_id (INTEGER)
+- name (VARCHAR(100))
+- building (VARCHAR(50))
+- head_of_department (INTEGER)
+
+Primary Key: department_id
+
+Foreign Keys:
+- head_of_department -> professors.professor_id
+
+### enrollments
+
+Columns:
+- enrollment_id (INTEGER)
+- student_id (INTEGER)
+- offering_id (INTEGER)
+- enrollment_date (DATE)
+- grade (VARCHAR(2))
+
+Primary Key: enrollment_id
+
+Foreign Keys:
+- student_id -> students.student_id
+- offering_id -> course_offerings.offering_id
+
+### professors
+
+Columns:
+- professor_id (INTEGER)
+- first_name (VARCHAR(50))
+- last_name (VARCHAR(50))
+- email (VARCHAR(100))
+- hire_date (DATE)
+- department_id (INTEGER)
+
+Primary Key: professor_id
+
+Foreign Keys:
+- department_id -> departments.department_id
+
+### students
+
+Columns:
+- student_id (INTEGER)
+- first_name (VARCHAR(50))
+- last_name (VARCHAR(50))
+- email (VARCHAR(100))
+- date_of_birth (DATE)
+- enrollment_year (INTEGER)
+- department_id (INTEGER)
+
+Primary Key: student_id
+
+Foreign Keys:
+- department_id -> departments.department_id
+
+### submissions
+
+Columns:
+- submission_id (INTEGER)
+- assignment_id (INTEGER)
+- student_id (INTEGER)
+- submitted_at (DATETIME)
+- score (INTEGER)
+
+Primary Key: submission_id
+
+Foreign Keys:
+- assignment_id -> assignments.assignment_id
+- student_id -> students.student_id
+
+

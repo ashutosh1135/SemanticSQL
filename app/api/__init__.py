@@ -1,6 +1,5 @@
 from fastapi import APIRouter
-from app.api import connections, query
+from app.api.endpoints import router as endpoints_router
 
-api_router = APIRouter()
-api_router.include_router(connections.router)
-api_router.include_router(query.router) 
+router = APIRouter()
+router.include_router(endpoints_router, prefix="/api", tags=["api"]) 

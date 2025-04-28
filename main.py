@@ -9,17 +9,15 @@ import logging
 import os
 import sys
 
-from app.api import api_router
+from app.api import router
 from app.config.config import settings
 from app.db.database import create_db_and_tables
 
 # Configure logging
 logging.basicConfig(
-    level=logging.getLevelName(os.getenv("LOG_LEVEL", "INFO")),
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    stream=sys.stdout
 )
 logger = logging.getLogger("semanticsql")
 
@@ -42,7 +40,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down application...")
 
 app = FastAPI(
-    title=settings.APP_NAME,
+    title="SemanticSQL API",
     description="Natural Language to SQL API using semantic search and LLMs",
     version=settings.APP_VERSION,
     lifespan=lifespan,
@@ -67,7 +65,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -95,18 +93,24 @@ async def http_exception_handler(request, exc):
     )
 
 # Include API routes
-app.include_router(
-    api_router,
-    prefix=settings.API_PREFIX
-)
+app.include_router(router)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    try:
+        await create_db_and_tables()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise
 
 @app.get("/")
-async def root():
-    """Root endpoint with API info and health status."""
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "env": settings.APP_ENV,
-        "status": "healthy",
-        "docs": f"{settings.API_PREFIX}/docs" if settings.APP_ENV != "production" else None
-    }
+async def health_check():
+    """Health check endpoint."""
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "name": settings.APP_NAME
+        }
+    )
