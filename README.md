@@ -21,11 +21,11 @@ Connect to an external database.
 {
     "db_type": "mysql",
     "db_name": "prod",
-    "host": "bh-ai-database-identifier.cbkgq2y24ej6.us-east-1.rds.amazonaws.com",
+    "host": "localhost",
     "port": "3306",
-    "database": "bhdatabase",
+    "database": "semanticsql",
     "username": "admin",
-    "password": "Nopassw0rd#"
+    "password": "yourpassword"
 }
 ```
 
